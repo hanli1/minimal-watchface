@@ -31,6 +31,7 @@ import android.graphics.Rect;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -203,7 +204,18 @@ public class MinimalWatch extends CanvasWatchFaceService {
             });
 
             mCalendar = Calendar.getInstance();
+
+
         }
+
+        private BroadcastReceiver batteryReceiver = new BroadcastReceiver(){
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0);
+                battery = level;
+            }
+        };
+
 
         @Override
         public void onDestroy() {
@@ -479,14 +491,12 @@ public class MinimalWatch extends CanvasWatchFaceService {
             super.onVisibilityChanged(visible);
 
             if (visible) {
-                batteryHandler.sendEmptyMessage(0);
-                registerReceiver();
+                registerReceivers();
                 /* Update time zone in case it changed while we weren't visible. */
                 mCalendar.setTimeZone(TimeZone.getDefault());
                 invalidate();
             } else {
-                batteryHandler.removeMessages(0);
-                unregisterReceiver();
+                unregisterReceivers();
             }
 
             /* Check and trigger whether or not timer should be running (only in active mode). */
@@ -499,21 +509,23 @@ public class MinimalWatch extends CanvasWatchFaceService {
             mPeekCardBounds.set(rect);
         }
 
-        private void registerReceiver() {
+        private void registerReceivers() {
             if (mRegisteredTimeZoneReceiver) {
                 return;
             }
             mRegisteredTimeZoneReceiver = true;
             IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
             MinimalWatch.this.registerReceiver(mTimeZoneReceiver, filter);
+            MinimalWatch.this.registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         }
 
-        private void unregisterReceiver() {
+        private void unregisterReceivers() {
             if (!mRegisteredTimeZoneReceiver) {
                 return;
             }
             mRegisteredTimeZoneReceiver = false;
             MinimalWatch.this.unregisterReceiver(mTimeZoneReceiver);
+            MinimalWatch.this.registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         }
 
         /**
@@ -546,42 +558,11 @@ public class MinimalWatch extends CanvasWatchFaceService {
                 mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, 0);
             }
         }
-        /* Asynchronous task to load the meetings from the content provider and
-        * report the number of meetings back using onMeetingsLoaded() */
-        private class GetBatteryTask extends AsyncTask<Void, Void, String> {
-            @Override
-            protected String doInBackground(Void... voids) {
 
-                return "100";
-            }
-
-            @Override
-            protected void onPostExecute(String result) {
-                onWeatherLoaded(result);
-            }
-        }
-
-        private AsyncTask<Void, Void, String> batteryTask;
         private int battery;
-        /* Handler to load the meetings once a minute in interactive mode. */
-        final Handler batteryHandler = new Handler() {
-            @Override
-            public void handleMessage(Message message) {
-                batteryTask = new GetBatteryTask();
-                batteryTask.execute();
 
-            }
-        };
-
-        private void onWeatherLoaded(String result) {
-            if (result != null) {
-                battery = Integer.parseInt(result);
-//                invalidate();
-            }
-            if (isVisible()) {
-                batteryHandler.sendEmptyMessageDelayed(
-                        0, 4000);
-            }
+        private int minutesToMillis(int minutes){
+            return minutes * 60 * 1000;
         }
 
         private boolean isNetworkAvailable() {
