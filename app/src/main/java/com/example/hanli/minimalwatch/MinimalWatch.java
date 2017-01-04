@@ -102,6 +102,7 @@ public class MinimalWatch extends CanvasWatchFaceService {
         private static final float HOUR_STROKE_WIDTH = 7f;
         private static final float MINUTE_STROKE_WIDTH = 5f;
         private static final float SECOND_TICK_STROKE_WIDTH = 3f;
+        private static final float TEXT_STROKE_WIDTH = 2f;
 
         private static final float CENTER_GAP_AND_CIRCLE_RADIUS = 4f;
 
@@ -133,7 +134,7 @@ public class MinimalWatch extends CanvasWatchFaceService {
         private Paint mSecondPaint;
         private Paint mTickAndCirclePaint;
         private Paint mBackgroundPaint;
-        private Paint hourNumberPaint;
+        private Paint textPaint;
         private Bitmap mBackgroundBitmap;
         private Bitmap mGrayBackgroundBitmap;
         private boolean mAmbient;
@@ -187,8 +188,16 @@ public class MinimalWatch extends CanvasWatchFaceService {
             mTickAndCirclePaint.setAntiAlias(true);
             mTickAndCirclePaint.setStyle(Paint.Style.STROKE);
             mTickAndCirclePaint.setShadowLayer(SHADOW_RADIUS, 0, 0, mWatchHandShadowColor);
-            mTickAndCirclePaint.setTextSize(20);
-            mTickAndCirclePaint.setTextAlign(Paint.Align.CENTER);
+
+
+            textPaint = new Paint();
+            textPaint.setColor(mWatchHandColor);
+            textPaint.setStrokeWidth(TEXT_STROKE_WIDTH);
+            textPaint.setAntiAlias(true);
+            textPaint.setStyle(Paint.Style.STROKE);
+//            textPaint.setShadowLayer(SHADOW_RADIUS, 0, 0, mWatchHandShadowColor);
+            textPaint.setTextSize(20);
+            textPaint.setTextAlign(Paint.Align.CENTER);
 
             /* Extract colors from background image to improve watchface style. */
             Palette.from(mBackgroundBitmap).generate(new Palette.PaletteAsyncListener() {
@@ -376,6 +385,28 @@ public class MinimalWatch extends CanvasWatchFaceService {
             invalidate();
         }
 
+        private void drawTextCentered(String text, float x, float y, Canvas canvas, Paint paint){
+            //hacky tacky pls
+            Rect textBounds = new Rect();
+            paint.getTextBounds("A", 0, 1, textBounds);
+
+
+            canvas.drawText(text, x, y + textBounds.height()/2, paint);
+        }
+
+        private String dayOfWeekToString(int day){
+            switch(day){
+                case 1: return "Sun";
+                case 2: return "Mon";
+                case 3: return "Tue";
+                case 4: return "Wed";
+                case 5: return "Thu";
+                case 6: return "Fri";
+                case 7: return "Sat";
+            }
+            return "WTF";
+        }
+
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             long now = System.currentTimeMillis();
@@ -417,9 +448,27 @@ public class MinimalWatch extends CanvasWatchFaceService {
 
             }
 
-            // draw the weather
 //            System.out.println("centerX: " + mCenterX + " CenterY: " + mCenterY);
-            canvas.drawText(battery + "", mCenterX, mCenterY + 100, mTickAndCirclePaint);
+
+            //draw battery
+            int circleRadius = 30;
+            float circleCenter = mCenterY * 1.5f;
+            if(!mAmbient){
+                canvas.drawCircle(mCenterX, circleCenter, circleRadius, textPaint);
+                String batteryText = battery + "%";
+
+                drawTextCentered(batteryText, mCenterX, circleCenter, canvas, textPaint);
+
+
+            }
+
+            //draw day of week
+            int dayOfWeek = mCalendar.get(Calendar.DAY_OF_WEEK);
+            float offset = (float) (mCenterY * 0.5/Math.sqrt(2));
+            canvas.drawCircle(mCenterX + offset, mCenterY + offset, circleRadius, textPaint);
+            drawTextCentered(dayOfWeekToString(dayOfWeek), mCenterX + offset, mCenterY + offset, canvas, textPaint);
+
+
 
             /*
              * These calculations reflect the rotation in degrees per unit of time, e.g.,
